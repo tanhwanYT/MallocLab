@@ -35,10 +35,28 @@ team_t team = {
     ""};
 
 /* single word (4) or double word (8) alignment */
+#define WSIZE 4
+#define DSIZE 8
+#define CHUNKSIZE (1<<12) 
 #define ALIGNMENT 8
+
+#define MAX(x, y) ((x) > (y) ? (x) : (y))
 
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(size) (((size) + (ALIGNMENT - 1)) & ~0x7)
+#define PACK(size, alloc) ((size) | (alloc))
+
+#define GET(p) (*(unsigned int *)(p))
+#define PUT(p, val) (*(unsigned int *)(p) = (val))
+
+#define GET_SIZE(p) (GET(p) & ~0x7)
+#define GET_ALLOC(p) (GET(p) & 0x1)
+
+#define HDRP(bp) ((char *)(bp) - WSIZE)
+#define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp))- WSIZE)
+
+#define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE)))
+#define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
 
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
@@ -47,6 +65,17 @@ team_t team = {
  */
 int mm_init(void)
 {
+    if((heap_listp = mem_sbrk(4*WSIZE)) == (void *)-1)
+        return -1;
+
+    PUT(heap_listp, 0);
+    PUT(heap_listp + (1*WSIZE), PACK(DSIZE, 1));
+    PUT(heap_listp + (2*WSIZE), PACK(DSIZE, 1));
+    PUT(heap_listp + (3*WSIZE), PACK(0, 1));
+    heap_listp += (2*WSIZE);  
+
+    if(extend_heap(CHUNKSIZE / WSIZE) == NULL)
+        return -1;
     return 0;
 }
 
@@ -72,6 +101,11 @@ void *mm_malloc(size_t size)
  */
 void mm_free(void *ptr)
 {
+}
+
+static void *extend_heap(size_t word)
+{
+
 }
 
 /*
