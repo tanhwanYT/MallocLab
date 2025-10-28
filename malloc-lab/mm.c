@@ -42,6 +42,7 @@ team_t team = {
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
+char *heap_listp;
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(size) (((size) + (ALIGNMENT - 1)) & ~0x7)
 #define PACK(size, alloc) ((size) | (alloc))
@@ -85,14 +86,65 @@ int mm_init(void)
  */
 void *mm_malloc(size_t size)
 {
-    int newsize = ALIGN(size + SIZE_T_SIZE);
-    void *p = mem_sbrk(newsize);
-    if (p == (void *)-1)
-        return NULL;
+    size_t asize;
+    size_t extendsize;
+    char *bp;
+
+    if(size == 0) return NULL;
+
+    if(size <= DSIZE) asize = 2*DSIZE;
+    else asize = DSIZE * ((size + (DSIZE) + (DSIZE - 1)) / DSIZE);
+
+    if(bp = find_fit(asize) != NULL)
+    {
+        place(bp, asize);
+        return bp;
+    }
+
+    extendsize = MAX(asize,CHUNKSIZE);
+
+    if(bp = extend_heap(extendsize / WSIZE) == NULL) return NULL;
+    place(bp, asize);
+    return bp;
+}
+
+static void *find_fit(size_t asize)
+{
+    size_t next_block = NEXT_BLKP(heap_listp);
+    
+    while (GET_SIZE(next_block) > 0)
+    {
+        if(asize <= GET_SIZE(HDRP(next_block)))
+        {   
+            if(GET_ALLOC(HDRP(next_block)))
+            {
+                return next_block;
+            }        
+        }
+        else
+        {
+            next_block = NEXT_BLKP(heap_listp);
+        }
+    }
+    return NULL;
+}
+
+static void place(void *bp, size_t asize) // 분할
+{
+    size_t size = GET_SIZE(HDRP(bp));
+
+    if(size - asize >= 2 * DSIZE)
+    {
+        PUT(HDRP(bp), PACK(asize, 1));
+        PUT(FTRP(bp), PACK(asize, 1));
+
+        PUT(HDRP(NEXT_BLKP(bp)), PACK(size - asize, 0));
+        PUT(FTRP(NEXT_BLKP(bp)), PACK(size - asize, 0));
+    }
     else
     {
-        *(size_t *)p = size;
-        return (void *)((char *)p + SIZE_T_SIZE);
+        PUT(HDRP(bp), PACK(size, 1));
+        PUT(FTRP(bp), PACK(size, 1));      
     }
 }
 
